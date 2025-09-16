@@ -1,8 +1,3 @@
-Perfecto 🚀. Te armo un **`README.md` completo**, claro y orientado a desarrolladores para que puedan poner en marcha tu proyecto en local sin fricción.
-
----
-
-```markdown
 # ⚙️ scandi-supply-engine
 
 Backend service for scanning and assessing **modern slavery risks** in supply chains.  
@@ -68,6 +63,7 @@ http://127.0.0.1:5000
 ```
 
 ---
+
 
 ## 🧪 Testing
 
