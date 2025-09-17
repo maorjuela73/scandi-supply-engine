@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_caching import Cache
+from flask_cors import CORS
 from .config import config_by_name
 
 cache = Cache()
@@ -14,6 +15,8 @@ def create_app(config_name: str = "development"):
     # registrar blueprint
     from .api.routes import api_bp
     app.register_blueprint(api_bp, url_prefix="/api/v1")
+
+    CORS(app, resources={r"/api/*": {"origins": "https://scandi-supply-scan.lovable.app"}})
 
     @app.route("/health")
     def health():
