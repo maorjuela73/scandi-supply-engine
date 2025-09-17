@@ -7,26 +7,30 @@ class ScanService:
     def __init__(self, adapter=None):
         self.adapter = adapter or GDELTAdapter()
         
-        # Palabras clave y sus pesos para diferentes categorías de riesgo
-        self.risk_keywords = {
-            'recall': 30, 'defect': 25, 'failure': 25, 'crash': 35, 
-            'stall': 20, 'investigation': 20, 'lawsuit': 30, 'verdict': 25,
-            'problem': 20, 'issue': 15, 'concern': 15, 'warn': 15,
-            'fire': 40, 'explosion': 40, 'death': 50, 'injuries': 40,
-            'controversy': 20, 'protest': 25, 'lawsuit': 30, 'settlement': 20,
-            'decline': 15, 'drop': 15, 'fall': 15, 'plummet': 20
+        # Palabras clave específicas de modern slavery con pesos
+        self.slavery_keywords = {
+            'forced labor': 40, 'human trafficking': 45, 'child labor': 50,
+            'debt bondage': 35, 'exploitation': 30, 'sweatshop': 25,
+            'forced overtime': 20, 'labor camp': 45, 'coercion': 25,
+            'involuntary servitude': 40, 'wage theft': 20, 'recruitment fraud': 25
         }
         
-        # Dominios de medios confiables (aumentan la credibilidad del riesgo)
+        # Industrias de alto riesgo para modern slavery
+        self.high_risk_industries = {
+            'textile', 'garment', 'agriculture', 'mining',
+            'construction', 'fishing', 'manufacturing', 'electronics'
+        }
+        
+        # Regiones de alto riesgo para modern slavery
+        self.high_risk_regions = {
+            'China', 'India', 'Bangladesh', 'Pakistan',
+            'Vietnam', 'Cambodia', 'Myanmar', 'Thailand'
+        }
+        
+        # Dominios de medios confiables
         self.trusted_domains = {
             'reuters.com', 'bloomberg.com', 'wsj.com', 'ft.com',
             'nytimes.com', 'bbc.co.uk', 'theguardian.com', 'ap.org'
-        }
-        
-        # Países con regulaciones estrictas (aumentan el riesgo percibido)
-        self.strict_regulation_countries = {
-            'United States', 'Canada', 'Germany', 'United Kingdom',
-            'France', 'Japan', 'Australia', 'Sweden'
         }
 
     def compute_risk_score(self, articles):
@@ -42,36 +46,41 @@ class ScanService:
             domain = article.get('domain', '')
             country = article.get('sourcecountry', '')
             
-            # Análisis de sentimiento
+            # Análisis de sentimiento con TextBlob
             sentiment = self._analyze_sentiment(title)
             
-            # Detección de palabras clave de riesgo
-            keyword_risk, found_keywords = self._check_risk_keywords(title)
+            # Detección de palabras clave de modern slavery
+            keyword_risk, found_keywords = self._check_slavery_keywords(title)
             article_risk += keyword_risk
+            
+            # Factor de región de alto riesgo
+            if country in self.high_risk_regions:
+                article_risk *= 1.5
+                risk_explanations.append(f"Source from high-risk region: {country}")
+            
+            # Factor de industria de alto riesgo (basado en dominio)
+            if self._check_high_risk_industry(domain):
+                article_risk *= 1.4
+                risk_explanations.append(f"High-risk industry domain: {domain}")
             
             # Factor de dominio confiable
             if domain in self.trusted_domains:
                 article_risk *= 1.3
-                risk_explanations.append(f"Article from trusted domain {domain}")
+                risk_explanations.append(f"Reliable source: {domain}")
             
-            # Factor de país con regulaciones estrictas
-            if country in self.strict_regulation_countries:
-                article_risk *= 1.2
-                risk_explanations.append(f"Article from strict regulation country {country}")
-            
-            # Factor de sentimiento negativo
-            if sentiment < 0:
-                article_risk *= (1 + abs(sentiment) * 0.5)
-                risk_explanations.append("Negative sentiment detected")
+            # Factor de sentimiento negativo (usando TextBlob)
+            if sentiment < -0.2:  # Umbral más estricto para negatividad
+                article_risk *= (1 + abs(sentiment) * 0.7)  # Mayor peso al sentimiento negativo
+                risk_explanations.append(f"Strong negative sentiment: {sentiment:.2f}")
             
             # Añadir explicaciones basadas en palabras clave encontradas
             if found_keywords:
-                risk_explanations.append(f"Risk keywords found: {', '.join(found_keywords)}")
+                risk_explanations.append(f"Slavery keywords: {', '.join(found_keywords)}")
             
             total_risk += article_risk
         
         # Calcular riesgo promedio y normalizar a escala 0-100
-        avg_risk = total_risk / len(articles)
+        avg_risk = total_risk / len(articles) if articles else 0
         normalized_risk = min(100, avg_risk)
         
         # Crear explicación consolidada
@@ -82,34 +91,43 @@ class ScanService:
     def _analyze_sentiment(self, text):
         """Analiza el sentimiento del texto usando TextBlob"""
         analysis = TextBlob(text)
-        # Convertir polaridad (-1 a 1) a un factor multiplicativo
         return analysis.sentiment.polarity
 
-    def _check_risk_keywords(self, text):
-        """Busca palabras clave de riesgo en el texto"""
+    def _check_slavery_keywords(self, text):
+        """Busca palabras clave de modern slavery en el texto"""
         risk_score = 0
         found_keywords = []
         
-        for keyword, weight in self.risk_keywords.items():
-            if re.search(r'\b' + keyword + r'\b', text):
+        for keyword, weight in self.slavery_keywords.items():
+            # Búsqueda de frases completas
+            if re.search(r'\b' + keyword.replace(' ', r'\s+') + r'\b', text):
                 risk_score += weight
                 found_keywords.append(keyword)
         
         return risk_score, found_keywords
 
+    def _check_high_risk_industry(self, domain):
+        """Detectar industrias de alto riesgo basado en el dominio"""
+        domain_lower = domain.lower()
+        return any(industry in domain_lower for industry in self.high_risk_industries)
+
     def _generate_explanation(self, risk_score, risk_explanations):
         """Genera una explicación basada en el puntaje de riesgo y las razones"""
-        if risk_score < 30:
-            base = "Low risk profile. Minimal concerning content found."
-        elif risk_score < 60:
-            base = "Moderate risk level. Several risk factors detected."
+        if risk_score < 20:
+            base = "Low modern slavery risk. Minimal concerning content found."
+        elif risk_score < 50:
+            base = "Moderate modern slavery risk. Several risk factors detected."
+        elif risk_score < 75:
+            base = "High modern slavery risk. Significant concerning content identified."
         else:
-            base = "High risk level. Significant concerning content identified."
+            base = "Critical modern slavery risk. Urgent attention required."
         
         # Añadir las explicaciones específicas si existen
         if risk_explanations:
-            unique_explanations = list(set(risk_explanations))
-            details = " Key factors: " + "; ".join(unique_explanations[:3])  # Limitar a 3 factores principales
+            # Contar frecuencia de explicaciones y mostrar las más comunes
+            explanation_counts = Counter(risk_explanations)
+            top_explanations = [f"{count}x {explanation}" for explanation, count in explanation_counts.most_common(3)]
+            details = " Key factors: " + "; ".join(top_explanations)
             return base + details
         
         return base
@@ -117,14 +135,16 @@ class ScanService:
     def risk_level(self, score):
         """Determina el nivel de riesgo basado en el puntaje"""
         if score >= 70:
+            return "Critical"
+        elif score >= 50:
             return "High"
-        elif score >= 40:
+        elif score >= 30:
             return "Medium"
         else:
             return "Low"
 
     def summarize(self, company_name, query):
-        """Procesa los artículos y genera un resumen de riesgo"""
+        """Procesa los artículos y genera un resumen de riesgo de modern slavery"""
         data = self.adapter.fetch(query)
         articles = data.get("articles", [])
         
@@ -138,21 +158,22 @@ class ScanService:
             "riskLevel": risk_level,
             "explanation": explanation,
             "category": self.categorize(company_name),
-            "news": articles[:3],  # Devolver hasta 3 artículos para contexto
+            "news": articles[:3]
+            # "articlesAnalyzed": len(articles)
         }
 
     def categorize(self, company_name: str) -> str:
-        """Categorización simple basada en palabras clave"""
+        """Categorización basada en industrias de riesgo para modern slavery"""
         name_lower = company_name.lower()
-        if any(word in name_lower for word in ['tech', 'software', 'computer', 'digital']):
-            return "Technology"
-        elif any(word in name_lower for word in ['bank', 'finance', 'capital', 'investment']):
-            return "Finance"
-        elif any(word in name_lower for word in ['auto', 'car', 'vehicle', 'motor']):
-            return "Automotive"
-        elif any(word in name_lower for word in ['oil', 'gas', 'energy', 'power']):
-            return "Energy"
-        elif any(word in name_lower for word in ['pharma', 'medical', 'health', 'biotech']):
-            return "Healthcare"
+        if any(word in name_lower for word in ['textile', 'garment', 'clothing', 'fashion']):
+            return "Textile & Apparel"
+        elif any(word in name_lower for word in ['tech', 'electronic', 'computer', 'device']):
+            return "Electronics"
+        elif any(word in name_lower for word in ['agriculture', 'farm', 'food', 'produce']):
+            return "Agriculture & Food"
+        elif any(word in name_lower for word in ['mining', 'extraction', 'resource', 'natural']):
+            return "Mining & Extraction"
+        elif any(word in name_lower for word in ['construction', 'build', 'contractor', 'engineering']):
+            return "Construction"
         else:
             return "General"
