@@ -109,7 +109,7 @@ Example response:
 * [ ] Advanced risk heuristics (keywords, severity, recency)
 * [ ] Authentication with API keys
 * [ ] OpenAPI/Swagger documentation
-* [ ] Dockerfile & CI/CD pipeline
+* [x] Dockerfile & CI/CD pipeline
 
 ---
 
