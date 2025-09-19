@@ -80,7 +80,7 @@ class ScanService:
             total_risk += article_risk
         
         # Calcular riesgo promedio y normalizar a escala 0-100
-        avg_risk = total_risk / len(articles) if articles else 0
+        avg_risk = total_risk * 10 / len(articles) if articles else 0
         normalized_risk = min(100, avg_risk)
         
         # Crear explicación consolidada
