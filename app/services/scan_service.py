@@ -6,7 +6,7 @@ from collections import Counter
 class ScanService:
     def __init__(self, adapter=None):
         self.adapter = adapter or GDELTAdapter()
-        
+
         # Palabras clave específicas de modern slavery con pesos
         self.slavery_keywords = {
             'forced labor': 40, 'human trafficking': 45, 'child labor': 50,
@@ -76,16 +76,16 @@ class ScanService:
             # Añadir explicaciones basadas en palabras clave encontradas
             if found_keywords:
                 risk_explanations.append(f"Slavery keywords: {', '.join(found_keywords)}")
-            
+
             total_risk += article_risk
-        
+
         # Calcular riesgo promedio y normalizar a escala 0-100
         avg_risk = total_risk * 10 / len(articles) if articles else 0
-        normalized_risk = min(100, avg_risk)
-        
+        normalized_risk = min(10, avg_risk)
+
         # Crear explicación consolidada
         explanation = self._generate_explanation(normalized_risk, risk_explanations)
-        
+
         return normalized_risk, explanation
 
     def _analyze_sentiment(self, text):
@@ -97,13 +97,13 @@ class ScanService:
         """Busca palabras clave de modern slavery en el texto"""
         risk_score = 0
         found_keywords = []
-        
+
         for keyword, weight in self.slavery_keywords.items():
             # Búsqueda de frases completas
             if re.search(r'\b' + keyword.replace(' ', r'\s+') + r'\b', text):
                 risk_score += weight
                 found_keywords.append(keyword)
-        
+
         return risk_score, found_keywords
 
     def _check_high_risk_industry(self, domain):
@@ -113,32 +113,35 @@ class ScanService:
 
     def _generate_explanation(self, risk_score, risk_explanations):
         """Genera una explicación basada en el puntaje de riesgo y las razones"""
-        if risk_score < 20:
-            base = "Low modern slavery risk. Minimal concerning content found."
-        elif risk_score < 50:
-            base = "Moderate modern slavery risk. Several risk factors detected."
-        elif risk_score < 75:
-            base = "High modern slavery risk. Significant concerning content identified."
-        else:
+
+        if risk_score >= 9:
             base = "Critical modern slavery risk. Urgent attention required."
-        
-        # Añadir las explicaciones específicas si existen
+        elif risk_score >= 8:
+            base = "High modern slavery risk. Significant concerning content identified."
+        elif risk_score >= 6:
+            base = "Moderate modern slavery risk. Several risk factors detected."
+        else:
+            base = "Low modern slavery risk. Minimal concerning content found."
+
+        # Añadir explicaciones detalladas
         if risk_explanations:
-            # Contar frecuencia de explicaciones y mostrar las más comunes
             explanation_counts = Counter(risk_explanations)
-            top_explanations = [f"{count}x {explanation}" for explanation, count in explanation_counts.most_common(3)]
+            top_explanations = [
+                f"{count}x {explanation}"
+                for explanation, count in explanation_counts.most_common(3)
+            ]
             details = " Key factors: " + "; ".join(top_explanations)
             return base + details
-        
+
         return base
 
     def risk_level(self, score):
         """Determina el nivel de riesgo basado en el puntaje"""
-        if score >= 90:
+        if score >= 9:
             return "Critical"
-        elif score >= 80:
+        elif score >= 8:
             return "High"
-        elif score >= 60:
+        elif score >= 6:
             return "Medium"
         else:
             return "Low"
@@ -147,19 +150,18 @@ class ScanService:
         """Procesa los artículos y genera un resumen de riesgo de modern slavery"""
         data = self.adapter.fetch(query)
         articles = data.get("articles", [])
-        
+
         # Calcular puntaje de riesgo
         risk_score, explanation = self.compute_risk_score(articles)
         risk_level = self.risk_level(risk_score)
-        
+
         return {
             "name": company_name,
-            "riskScore": round(risk_score, 2),
+            "riskScore": round(risk_score, 1),
             "riskLevel": risk_level,
             "explanation": explanation,
             "category": self.categorize(company_name),
             "news": articles[:3]
-            # "articlesAnalyzed": len(articles)
         }
 
     def categorize(self, company_name: str) -> str:
