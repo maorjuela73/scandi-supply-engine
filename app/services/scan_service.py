@@ -134,11 +134,11 @@ class ScanService:
 
     def risk_level(self, score):
         """Determina el nivel de riesgo basado en el puntaje"""
-        if score >= 70:
+        if score >= 90:
             return "Critical"
-        elif score >= 50:
+        elif score >= 80:
             return "High"
-        elif score >= 30:
+        elif score >= 60:
             return "Medium"
         else:
             return "Low"
